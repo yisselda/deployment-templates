@@ -1,54 +1,95 @@
 version: '3.8'
 
 services:
-  translation:
-    image: ghcr.io/${GITHUB_ORG}/translation-service:latest
-    build:
-      context: ../translation-service
-      dockerfile: Dockerfile
+  # Development - Translation Service
+  translation-service:
+    build: ../translation-service
+    container_name: creole-translation-dev
     ports:
       - "8001:8001"
     environment:
+      - PORT=8001
       - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+      - RELOAD=true
     volumes:
-      - ../models:/models
+      - ../translation-service:/app
     depends_on:
       - redis
+    networks:
+      - creole-network
+    restart: unless-stopped
 
-  stt:
-    image: ghcr.io/${GITHUB_ORG}/speech-to-text-service:latest
-    build:
-      context: ../speech-to-text-service
-      dockerfile: Dockerfile
+  # Development - Speech-to-Text Service
+  stt-service:
+    build: ../speech-to-text-service
+    container_name: creole-stt-dev
     ports:
       - "8002:8002"
     environment:
+      - PORT=8002
       - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+      - RELOAD=true
     volumes:
-      - ../models:/models
+      - ../speech-to-text-service:/app
     depends_on:
       - redis
+    networks:
+      - creole-network
+    restart: unless-stopped
 
-  tts:
-    image: ghcr.io/${GITHUB_ORG}/text-to-speech-service:latest
-    build:
-      context: ../text-to-speech-service
-      dockerfile: Dockerfile
+  # Development - Text-to-Speech Service
+  tts-service:
+    build: ../text-to-speech-service
+    container_name: creole-tts-dev
     ports:
       - "8003:8003"
     environment:
+      - PORT=8003
       - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=debug
+      - RELOAD=true
     volumes:
-      - ../models:/models
+      - ../text-to-speech-service:/app
     depends_on:
       - redis
+    networks:
+      - creole-network
+    restart: unless-stopped
 
+  # Development - Web Application
+  web-app:
+    build: ../creole-translator-web
+    container_name: creole-web-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_TRANSLATION_API_URL=http://localhost:8001
+      - VITE_STT_API_URL=http://localhost:8002
+      - VITE_TTS_API_URL=http://localhost:8003
+      - NODE_ENV=development
+    volumes:
+      - ../creole-translator-web:/app
+      - /app/node_modules
+    depends_on:
+      - translation-service
+      - stt-service
+      - tts-service
+    networks:
+      - creole-network
+    restart: unless-stopped
+
+  # Redis for development
   redis:
     image: redis:7-alpine
+    container_name: creole-redis-dev
     ports:
       - "6379:6379"
-    volumes:
-      - redis_data:/data
+    networks:
+      - creole-network
+    restart: unless-stopped
 
-volumes:
-  redis_data:
+networks:
+  creole-network:
+    driver: bridge

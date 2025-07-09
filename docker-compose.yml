@@ -1,0 +1,123 @@
+version: '3.8'
+
+services:
+  # Translation Service
+  translation-service:
+    image: ghcr.io/yisselda/translation-service:latest
+    container_name: creole-translation
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      - redis
+    networks:
+      - creole-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Speech-to-Text Service
+  stt-service:
+    image: ghcr.io/yisselda/speech-to-text-service:latest
+    container_name: creole-stt
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      - redis
+    networks:
+      - creole-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Text-to-Speech Service
+  tts-service:
+    image: ghcr.io/yisselda/text-to-speech-service:latest
+    container_name: creole-tts
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      - redis
+    networks:
+      - creole-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Reference Web Application
+  web-app:
+    image: ghcr.io/yisselda/creole-translator-web:latest
+    container_name: creole-web
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_TRANSLATION_API_URL=http://localhost:8001
+      - VITE_STT_API_URL=http://localhost:8002
+      - VITE_TTS_API_URL=http://localhost:8003
+    depends_on:
+      - translation-service
+      - stt-service
+      - tts-service
+    networks:
+      - creole-network
+    restart: unless-stopped
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: creole-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - creole-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: creole-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - translation-service
+      - stt-service
+      - tts-service
+      - web-app
+    networks:
+      - creole-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  creole-network:
+    driver: bridge
