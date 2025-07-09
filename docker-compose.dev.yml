@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  translation:
+    image: ghcr.io/${GITHUB_ORG}/translation-service:latest
+    build:
+      context: ../translation-service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ../models:/models
+    depends_on:
+      - redis
+
+  stt:
+    image: ghcr.io/${GITHUB_ORG}/speech-to-text-service:latest
+    build:
+      context: ../speech-to-text-service
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ../models:/models
+    depends_on:
+      - redis
+
+  tts:
+    image: ghcr.io/${GITHUB_ORG}/text-to-speech-service:latest
+    build:
+      context: ../text-to-speech-service
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ../models:/models
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  redis_data:
